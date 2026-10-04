@@ -1,0 +1,21 @@
+{
+	"folders":
+	[
+		{
+			"path": ".",
+			"folder_exclude_patterns": [
+				"build",
+				"pig_build",
+				"core",
+			]
+		},
+		{
+			"name": "pig_build",
+			"path": "../pig_build/src"
+		},
+		{
+			"name": "pig_core",
+			"path": "core/src"
+		},
+	],
+}
