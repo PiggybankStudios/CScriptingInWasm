@@ -35,13 +35,14 @@ int main()
 	Str cScriptingFolder = DownloadCScriptingIfNeeded();
 	Str pigCoreFolder = DownloadPigCoreIfNeeded();
 	
-	WriteLine("Building " WASM_OUTPUT_FILENAME "...\n");
+	WriteLine("Building " WASM_OUTPUT_FILENAME "...");
 	
 	CliArgs compileArgs = EMPTY;
 	AddFullFilePathsArg(&compileArgs);
 	AddOptimizationLevelArgNt(&compileArgs, "0");
 	AddArg(&compileArgs, CLANG_DEBUG_INFO_DEFAULT);
-	AddIncludeDirArgLit(&compileArgs, C_SCRIPTING_FOLDER);
+	AddIncludeDirArgLit(&compileArgs, "[ROOT]/src");
+	AddIncludeDirArgLit(&compileArgs, C_SCRIPTING_FOLDER "/symbol_set");
 	AddIncludeDirArgLit(&compileArgs, PIG_CORE_FOLDER "/src");
 	// AddWarningLevelArgNt(&compileArgs, "all");
 	AddArgNt(&compileArgs, CLANG_M_FLAG, "bulk-memory");
@@ -52,9 +53,16 @@ int main()
 	AddArg(&compileArgs,   CLANG_NO_STD_LIBRARIES);
 	AddArg(&compileArgs,   CLANG_NO_STD_INCLUDES);
 	AddArgNt(&compileArgs, CLANG_EXPORT_SYMBOL, "__heap_base");
+	AddArgNt(&compileArgs, CLANG_LANGUAGE, "c");
 	
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, MAIN_C_PATH);
+	AddArgNt(&compileArgs, CLI_QUOTED_ARG, "[ROOT]/src/commands1.c");
+	AddArgNt(&compileArgs, CLI_QUOTED_ARG, "[ROOT]/src/commands2.c");
 	AddArgNt(&compileArgs, CLANG_OUTPUT_FILE, WASM_OUTPUT_FILENAME);
+	
+	// AddArg(&compileArgs, CLANG_PRECOMPILE_ONLY);
+	// AddArg(&compileArgs, CLANG_PRECOMPILE_EMIT_DEFINES);
+	// AddArgNt(&compileArgs, CLANG_OUTPUT_FILE, "preprocessor_macros.txt");
 	
 	StrArray compileTags = EMPTY;
 	AddTag(&compileTags, T_BUILDING_ON_OS);
@@ -72,6 +80,7 @@ int main()
 	
 	#if 1
 	Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
+	PrintLine("Converting " WASM_OUTPUT_FILENAME " to %.*s...", StrPrint(watFilename));
 	CliArgs wasm2WatFlags = EMPTY;
 	AddArgNt(&wasm2WatFlags, CLI_QUOTED_ARG, WASM_OUTPUT_FILENAME);
 	AddArgStr(&wasm2WatFlags, "-o \"[VAL]\"", watFilename);
