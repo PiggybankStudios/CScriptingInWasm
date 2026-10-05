@@ -21,8 +21,11 @@ Description:
 
 #define MAIN_C_PATH          "[ROOT]/src/main.c"
 #define WASM_OUTPUT_FILENAME "main.wasm"
+#define EXE_OUTPUT_FILENAME  "main.exe"
 #define C_SCRIPTING_FOLDER   "[ROOT]/c_scripting"
 #define PIG_CORE_FOLDER      "[ROOT]/core"
+
+#define USE_MSVC  0
 
 Str DownloadCScriptingIfNeeded();
 Str DownloadPigCoreIfNeeded();
@@ -31,64 +34,100 @@ int main()
 {
 	PigBuildDebugMode = false;
 	RecompileIfNeeded(StrArray_Empty);
+	bool isMsvcInitialized = (USE_MSVC ? WasMsvcDevBatchRun() : false);
 	
 	Str cScriptingFolder = DownloadCScriptingIfNeeded();
 	Str pigCoreFolder = DownloadPigCoreIfNeeded();
 	
-	WriteLine("Building " WASM_OUTPUT_FILENAME "...");
+	PrintLine("Building %s...", USE_MSVC ? EXE_OUTPUT_FILENAME : WASM_OUTPUT_FILENAME);
 	
+	// +==============================+
+	// |        Compiler Args         |
+	// +==============================+
 	CliArgs compileArgs = EMPTY;
+	AddNoLogoArg(&compileArgs);
 	AddFullFilePathsArg(&compileArgs);
-	AddOptimizationLevelArgNt(&compileArgs, "0");
-	AddArg(&compileArgs, CLANG_DEBUG_INFO_DEFAULT);
+	// AddOptimizationLevelArgNt(&compileArgs, USE_MSVC ? "d" : "0");
+	AddOptimizationLevelArgNt(&compileArgs, "2");
+	AddTaggedArg(&compileArgs, T_CLANG, CLANG_DEBUG_INFO_DEFAULT);
+	AddTaggedArg(&compileArgs, T_MSVC_CL, CL_DEBUG_INFO);
 	AddIncludeDirArgLit(&compileArgs, "[ROOT]/src");
 	AddIncludeDirArgLit(&compileArgs, C_SCRIPTING_FOLDER "/symbol_set");
 	AddIncludeDirArgLit(&compileArgs, PIG_CORE_FOLDER "/src");
 	// AddWarningLevelArgNt(&compileArgs, "all");
-	AddArgNt(&compileArgs, CLANG_M_FLAG, "bulk-memory");
-	AddArgNt(&compileArgs, CLANG_TARGET_ARCHITECTURE, "wasm32");
-	AddArgNt(&compileArgs, CLANG_INCLUDE_DIR, "[ROOT]/core/src/wasm/std/include");
-	AddArg(&compileArgs,   CLANG_NO_ENTRYPOINT);
-	AddArg(&compileArgs,   CLANG_ALLOW_UNDEFINED);
-	AddArg(&compileArgs,   CLANG_NO_STD_LIBRARIES);
-	AddArg(&compileArgs,   CLANG_NO_STD_INCLUDES);
-	AddArgNt(&compileArgs, CLANG_EXPORT_SYMBOL, "__heap_base");
-	AddArgNt(&compileArgs, CLANG_LANGUAGE, "c");
+	AddTaggedArgNt(&compileArgs, T_MSVC_CL, CL_LANG_VERSION, "c11");
+	AddTaggedArgNt(&compileArgs, T_MSVC_CL, CL_CONFIGURE_EXCEPTION_HANDLING, "a-");
+	AddTaggedArgNt(&compileArgs, T_MSVC_CL, CL_DISABLE_WARNING, "5105");
+	AddTaggedArgNt(&compileArgs, T_MSVC_CL, "-G[VAL]", "R-"); //TODO: Make a #define for this?
+	AddTaggedArgNt(&compileArgs, T_CLANG T_WASM, CLANG_M_FLAG, "bulk-memory");
+	AddTaggedArgNt(&compileArgs, T_CLANG T_WASM, CLANG_TARGET_ARCHITECTURE, "wasm32");
+	AddTaggedArgNt(&compileArgs, T_CLANG T_WASM, CLANG_INCLUDE_DIR, "[ROOT]/core/src/wasm/std/include");
+	AddTaggedArg(&compileArgs,   T_CLANG T_WASM, CLANG_NO_ENTRYPOINT);
+	AddTaggedArg(&compileArgs,   T_CLANG T_WASM, CLANG_ALLOW_UNDEFINED);
+	AddTaggedArg(&compileArgs,   T_CLANG T_WASM, CLANG_NO_STD_LIBRARIES);
+	AddTaggedArg(&compileArgs,   T_CLANG T_WASM, CLANG_NO_STD_INCLUDES);
+	AddTaggedArgNt(&compileArgs, T_CLANG T_WASM, CLANG_EXPORT_SYMBOL, "__heap_base");
+	AddTaggedArgNt(&compileArgs, T_CLANG T_WASM, CLANG_LANGUAGE, "c");
 	
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, MAIN_C_PATH);
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, "[ROOT]/src/commands1.c");
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, "[ROOT]/src/commands2.c");
-	AddArgNt(&compileArgs, CLANG_OUTPUT_FILE, WASM_OUTPUT_FILENAME);
+	if (USE_MSVC) { AddTaggedArgNt(&compileArgs, T_MSVC_CL, CL_BINARY_FILE, EXE_OUTPUT_FILENAME); }
+	else { AddTaggedArgNt(&compileArgs, T_CLANG, CLANG_OUTPUT_FILE, WASM_OUTPUT_FILENAME); }
 	
-	// AddArg(&compileArgs, CLANG_PRECOMPILE_ONLY);
-	// AddArg(&compileArgs, CLANG_PRECOMPILE_EMIT_DEFINES);
-	// AddArgNt(&compileArgs, CLANG_OUTPUT_FILE, "preprocessor_macros.txt");
+	// AddTaggedArg(&compileArgs,   T_CLANG, CLANG_PRECOMPILE_ONLY);
+	// AddTaggedArg(&compileArgs,   T_CLANG, CLANG_PRECOMPILE_EMIT_DEFINES);
+	// AddTaggedArgNt(&compileArgs, T_CLANG, CLANG_OUTPUT_FILE, "preprocessor_macros.txt");
 	
+	// +==============================+
+	// |       Linker Arguments       |
+	// +==============================+
+	AddTaggedArg(&compileArgs, T_MSVC_CL, "/link");
+	AddTaggedArg(&compileArgs, T_MSVC_CL, LINK_DISABLE_INCREMENTAL);
+	
+	// +==============================+
+	// |             Tags             |
+	// +==============================+
 	StrArray compileTags = EMPTY;
-	AddTag(&compileTags, T_BUILDING_ON_OS);
 	AddTag(&compileTags, T_PROGRAM);
-	AddTag(&compileTags, T_WASM);
-	AddTag(&compileTags, T_CLANG);
+	AddTag(&compileTags, T_LANG_C);
+	if (USE_MSVC)
+	{
+		AddTag(&compileTags, T_MSVC_CL);
+		AddTag(&compileTags, T_BUILDING_ON_OS);
+	}
+	else
+	{
+		AddTag(&compileTags, T_CLANG);
+		AddTag(&compileTags, T_WASM);
+	}
 	
+	// +==============================+
+	// |           Compile            |
+	// +==============================+
+	if (USE_MSVC) { InitializeMsvcIf(StrLit(PIG_BUILD_ROOT), &isMsvcInitialized); }
 	RunCliProgramAndExitOnFailureTags(
-		StrLit("clang"),
+		USE_MSVC ? StrLit("cl") : StrLit("clang"),
 		compileTags,
 		&compileArgs,
-		StrLit("Failed to compile main.c into main.wasm")
+		FormatStr("Failed to compile main.c into %s", USE_MSVC ? EXE_OUTPUT_FILENAME : WASM_OUTPUT_FILENAME)
 	);
-	AssertFileExist(StrLit(WASM_OUTPUT_FILENAME), true);
+	AssertFileExist(USE_MSVC ? StrLit(EXE_OUTPUT_FILENAME) : StrLit(WASM_OUTPUT_FILENAME), true);
 	
 	#if 1
-	Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
-	PrintLine("Converting " WASM_OUTPUT_FILENAME " to %.*s...", StrPrint(watFilename));
-	CliArgs wasm2WatFlags = EMPTY;
-	AddArgNt(&wasm2WatFlags, CLI_QUOTED_ARG, WASM_OUTPUT_FILENAME);
-	AddArgStr(&wasm2WatFlags, "-o \"[VAL]\"", watFilename);
-	RunCliProgramAndExitOnFailure(
-		StrLit("wasm2wat"),
-		&wasm2WatFlags,
-		FormatStr("Failed to convert " WASM_OUTPUT_FILENAME " to %.*s", StrPrint(watFilename))
-	);
+	if (!USE_MSVC)
+	{
+		Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
+		PrintLine("Converting " WASM_OUTPUT_FILENAME " to %.*s...", StrPrint(watFilename));
+		CliArgs wasm2WatFlags = EMPTY;
+		AddArgNt(&wasm2WatFlags, CLI_QUOTED_ARG, WASM_OUTPUT_FILENAME);
+		AddArgStr(&wasm2WatFlags, "-o \"[VAL]\"", watFilename);
+		RunCliProgramAndExitOnFailure(
+			StrLit("wasm2wat"),
+			&wasm2WatFlags,
+			FormatStr("Failed to convert " WASM_OUTPUT_FILENAME " to %.*s", StrPrint(watFilename))
+		);
+	}
 	#endif
 	
 	return 0;

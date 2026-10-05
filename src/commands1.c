@@ -13,3 +13,5 @@ COMMAND(test2, "description2");
 COMMAND(test3, "description3");
 COMMAND(test4, "description4");
 COMMAND(test5, "description5");
+
+__attribute__((__section__("custom_section"))) int thingInCustomSectionD = 0xDDDDDDDD;
