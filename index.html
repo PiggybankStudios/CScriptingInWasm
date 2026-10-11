@@ -1,0 +1,427 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Wasm Debugger</title>
+	<style>
+		:root { color-scheme: light dark; }
+		body { font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 1rem; }
+		#log { white-space: pre-wrap; border: 1px solid #BBBBBB; padding: .5rem; min-height: 10rem; }
+		#watText { color: #F8F8F2; opacity: 0.6; white-space: pre-wrap; border: 1px solid #BBBBBB; padding: .5rem; min-height: 10rem; }
+		.debugLog { color: #F8F8F2; opacity: 0.6; }
+		.defaultLog { color: #F8F8F2; }
+		.successLog { color: #A6E22E; }
+		.errorLog { color: #F83333; }
+		button, input { font: inherit; }
+		#clearBtn { float: right; }
+	</style>
+</head>
+<body>
+	<h1 id="title" style="font-size:1rem">Loading...</h1>
+	<p>
+		<input id="functionNameTextbox" value="MainFunc" size="24" aria-label="Export name">
+		<input id="argsTextbox" placeholder="args, e.g. 2, 3" size="32" aria-label="Arguments">
+		<button id="runBtn">Run</button>
+		<button id="clearBtn">Clear log</button>
+	</p>
+	<div id="log"></div>
+	
+	<script type="application/octet-stream" id="wasmBase64" data-title="__WASM_NAME__">
+		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bWFuZABjbWQAQzpcZ2FtZWRldlxwcm9qZWN0c1xjX3NjcmlwdGluZ19pbl93YXNtXGJ1aWxkAEFkZABjbWRJZAB0ZXN0N0lkAGxvY2FsNElkAGxvY2FsM0lkAGxvY2FsMklkAHRlc3QxSWQAbG9jYWwxSWQALi5cXHNyY1xtYWluLmMALi5cXHNyY1xjb21tYW5kczIuYwAuLlxcc3JjXGNvbW1hbmRzMS5jAF9fQVJSQVlfU0laRV9UWVBFX18AdGhpbmdJbkN1c3RvbVNlY3Rpb25EAHRoaW5nSW5DdXN0b21TZWN0aW9uQwB0aGluZ0luQ3VzdG9tU2VjdGlvbkIAdGhpbmdJbkN1c3RvbVNlY3Rpb25BAENPTU1BTkRTX190ZXN0OQBDT01NQU5EU19fdGVzdDgAU1lfX1U4AGNsYW5nIHZlcnNpb24gMTguMS44AENPTU1BTkRTX190ZXN0NwBDT01NQU5EU19fdGVzdDYAQ09NTUFORFNfX3Rlc3Q1AENPTU1BTkRTX190ZXN0NABDT01NQU5EU19fbG9jYWw0AENPTU1BTkRTX190ZXN0MwBDT01NQU5EU19fbG9jYWwzAENPTU1BTkRTX190ZXN0MgBDT01NQU5EU19fbG9jYWwyAFNZX19VMzIAanNQcmludE5hbWVkSTMyAENPTU1BTkRTX190ZXN0MQBDT01NQU5EU19fbG9jYWwxAADOBgsuZGVidWdfbGluZbgCAAAEAKQAAAABAQH7Dg0AAQEBAQAAAAEAAAEuLlxcc3JjAC4uXFxjb3JlXFxzcmNcXHdhc21cXHN0ZFxcaW5jbHVkZQAuLlxcY19zY3JpcHRpbmdcXHN5bWJvbF9zZXQAAG1haW4uYwABAABjb21tYW5kcy5oAAEAAHN0ZGludC5oAAIAAHN5bWJvbF9zZXQuYmFzZS5oAAMAAGpzX2JpbmRpbmdzLmgAAQAAAAQFBRIKAAUC/////wMdAQYDYmYFAgYDH0oFAWcGA2AgBAEFIwYD8gBYBUgGyAOOfyAFIwPyAEoFAlgEBQYDrX+QBQF1AgEAAQEFIAoABQL/////A/EAAQYDjn9mBQIGA/MALgYDjX8gBSMGA/IAWAVIBsgDjn8gBSMD8gBKBQJYBnUCAgABAQQFBRIKAAUC/////wMkAQYDW2YFAgYDJmYFAWcGA1kgBAEFIwYD8gBYBUgGyAOOfyAFIwPyAEoFAlgEBQYDtH+sBQF1AgEAAQEFPwoABQIDAAAAAxwBBTMGWAIBAAEBAAUCCwAAAAMfAQUCCgMeCDwIIQghZWVodQghCCEIIQghBSMGZgUVBgNeZgUjAyJmBQIGZgaDBRUDXWYFAgMjCC5nBRUDXWZlZwUCAyN0ZwUVA11mZGgFAgMjdGcFFQNdZmNpBQIDI3RnBRQDXWYFFWIFFGoFAgMjdGwFFANdZgUVA3ZmBRQDCmYFAgMjdAYDsH9mBgPVAGYGA6t/PAPVAIIFCAaIBR8CKBQFFwZYBSeeBRcgBRUgBR8GnQUXBlgFFWYDpH88BRwGA9cAugUpXwQFBRIDRzwGA1tYBAEFIwYD8gBKBUgGyAOOfyAFIwPyAEoFAlgEBQYDtH90BgNaPAMmIAQBBQcGAy+6BgOrf7oFAgPVAC4FQQYDDQgSBQIGIAZoAg4AAQE/AAAABAA5AAAAAQEB+w4NAAEBAQEAAAABAAABLi5cXHNyYwAAY29tbWFuZHMxLmMAAQAAY29tbWFuZHMuaAABAAAAPwAAAAQAOQAAAAEBAfsODQABAQEBAAAAAQAAAS4uXFxzcmMAAGNvbW1hbmRzMi5jAAEAAGNvbW1hbmRzLmgAAQAAAAClAQRuYW1lAAoJbWFpbi53YXNtAVgGAA9qc1ByaW50TmFtZWRTdHIBD2pzUHJpbnROYW1lZFB0cgIPanNQcmludE5hbWVkSTMyAwpqc1ByaW50TWVtBANBZGQFEVByaW50Q29tbWFuZHNJbmZvBxIBAA9fX3N0YWNrX3BvaW50ZXIJJAMABy5yb2RhdGEBCF9zeV9jbWRzAg5jdXN0b21fc2VjdGlvbgA1CXByb2R1Y2VycwIIbGFuZ3VhZ2UBA0MxMQAMcHJvY2Vzc2VkLWJ5AQVjbGFuZwYxOC4xLjgAOQ90YXJnZXRfZmVhdHVyZXMDKwtidWxrLW1lbW9yeSsPbXV0YWJsZS1nbG9iYWxzKwhzaWduLWV4dA==
+	</script>
+	
+	<pre id="watText">(module $main.wasm
+  (type (;0;) (func (param i32 i32 i32)))
+  (type (;1;) (func (param i32 i32)))
+  (type (;2;) (func (param i32 i32) (result i32)))
+  (type (;3;) (func (result i32)))
+  (import "env" "jsPrintNamedStr" (func $jsPrintNamedStr (type 0)))
+  (import "env" "jsPrintNamedPtr" (func $jsPrintNamedPtr (type 1)))
+  (import "env" "jsPrintNamedI32" (func $jsPrintNamedI32 (type 1)))
+  (import "env" "jsPrintMem" (func $jsPrintMem (type 1)))
+  (func $Add (type 2) (param i32 i32) (result i32)
+    local.get 1
+    local.get 0
+    i32.add)
+  (func $PrintCommandsInfo (type 3) (result i32)
+    (local i32 i32 i32 i32 i32 i32 i32 i32)
+    global.get $__stack_pointer
+    i32.const 16
+    i32.sub
+    local.tee 0
+    global.set $__stack_pointer
+    i32.const 1058
+    i32.const 1632
+    call $jsPrintNamedPtr
+    i32.const 1081
+    i32.const 1648
+    call $jsPrintNamedPtr
+    i32.const 1103
+    i32.const 1648
+    i32.const 1632
+    i32.sub
+    call $jsPrintNamedI32
+    i32.const 1253
+    i32.const 1632
+    call $jsPrintNamedPtr
+    i32.const 1231
+    i32.const 1640
+    call $jsPrintNamedPtr
+    i32.const 1209
+    i32.const 1636
+    call $jsPrintNamedPtr
+    i32.const 1129
+    i32.const 1644
+    call $jsPrintNamedPtr
+    i32.const 1024
+    i32.const 1632
+    i32.const 1528
+    i32.sub
+    local.tee 1
+    i32.const 3
+    i32.shr_u
+    local.tee 2
+    call $jsPrintNamedI32
+    i32.const 1199
+    i32.const 1528
+    i32.const 1528
+    i32.sub
+    i32.const 3
+    i32.shr_u
+    i32.const 1
+    i32.add
+    call $jsPrintNamedI32
+    i32.const 1180
+    i32.const 1536
+    i32.const 1528
+    i32.sub
+    i32.const 3
+    i32.shr_u
+    i32.const 1
+    i32.add
+    call $jsPrintNamedI32
+    i32.const 1170
+    i32.const 1544
+    i32.const 1528
+    i32.sub
+    i32.const 3
+    i32.shr_u
+    i32.const 1
+    i32.add
+    call $jsPrintNamedI32
+    i32.const 1160
+    i32.const 1552
+    i32.const 1528
+    i32.sub
+    i32.const 3
+    i32.shr_u
+    i32.const 1
+    i32.add
+    call $jsPrintNamedI32
+    i32.const 1190
+    i32.const 1560
+    i32.const 1528
+    i32.sub
+    i32.const 3
+    i32.shr_u
+    i32.const 1
+    i32.add
+    call $jsPrintNamedI32
+    i32.const 1151
+    i32.const 1608
+    i32.const 1528
+    i32.sub
+    i32.const 3
+    i32.shr_u
+    i32.const 1
+    i32.add
+    call $jsPrintNamedI32
+    block  ;; label = @1
+      local.get 1
+      i32.const 8
+      i32.lt_u
+      br_if 0 (;@1;)
+      local.get 2
+      i32.const 1
+      local.get 2
+      i32.const 1
+      i32.gt_u
+      select
+      local.set 3
+      i32.const 1
+      local.set 4
+      loop  ;; label = @2
+        i32.const 0
+        local.set 5
+        local.get 0
+        i32.const 0
+        i64.load offset=1121 align=1
+        i64.store offset=6 align=2
+        local.get 0
+        i32.const 0
+        i64.load offset=1115 align=1
+        i64.store
+        local.get 0
+        local.get 4
+        i32.const 15
+        i32.and
+        local.tee 2
+        i32.const 55
+        i32.add
+        local.get 2
+        i32.const 48
+        i32.or
+        local.get 2
+        i32.const 9
+        i32.gt_u
+        select
+        i32.store8 offset=11
+        local.get 0
+        local.get 4
+        i32.const 240
+        i32.and
+        local.tee 2
+        i32.const 55
+        i32.add
+        i32.const 48
+        local.get 2
+        select
+        i32.store8 offset=10
+        block  ;; label = @3
+          i32.const 1528
+          local.get 4
+          i32.const 3
+          i32.shl
+          i32.add
+          i32.const -8
+          i32.add
+          i32.load
+          local.tee 6
+          i32.eqz
+          br_if 0 (;@3;)
+          i32.const 0
+          local.set 2
+          loop  ;; label = @4
+            local.get 6
+            local.get 2
+            i32.add
+            local.set 5
+            local.get 2
+            i32.const 1
+            i32.add
+            local.tee 7
+            local.set 2
+            local.get 5
+            i32.load8_u
+            br_if 0 (;@4;)
+          end
+          local.get 7
+          i32.const -1
+          i32.add
+          local.set 5
+        end
+        local.get 0
+        local.get 6
+        local.get 5
+        call $jsPrintNamedStr
+        local.get 4
+        local.get 3
+        i32.eq
+        local.set 2
+        local.get 4
+        i32.const 1
+        i32.add
+        local.set 4
+        local.get 2
+        i32.eqz
+        br_if 0 (;@2;)
+      end
+    end
+    i32.const 1528
+    local.get 1
+    i32.const -8
+    i32.and
+    call $jsPrintMem
+    local.get 0
+    i32.const 16
+    i32.add
+    global.set $__stack_pointer
+    i32.const 0)
+  (table (;0;) 1 1 funcref)
+  (memory (;0;) 2)
+  (global $__stack_pointer (mut i32) (i32.const 67184))
+  (global (;1;) i32 (i32.const 67184))
+  (export "memory" (memory 0))
+  (export "Add" (func $Add))
+  (export "PrintCommandsInfo" (func $PrintCommandsInfo))
+  (export "__heap_base" (global 1))
+  (data $.rodata (i32.const 1024) "Command Count\00Generic Description\00__start_custom_section\00__stop_custom_section\00sectionSize\00Command[0xXX]\00thingInCustomSectionD\00test7 ID\00local4 ID\00local3 ID\00local2 ID\00test1 ID\00local1 ID\00thingInCustomSectionC\00thingInCustomSectionB\00thingInCustomSectionA\00test9\00test8\00test7\00test6\00test5\00description5\00test4\00description4\00This is a description of local4\00test3\00description3\00This is a description of local3\00test2\00description2\00This is a description of local2\00test1\00description1\00This is a description of local1\00")
+  (data $_sy_cmds (i32.const 1528) "\eb\05\00\00\d2\05\00\00\b8\05\00\00\9f\05\00\00\85\05\00\00l\05\00\00R\05\00\009\05\00\00\bf\05\00\00\c5\05\00\00\8c\05\00\00\92\05\00\00Y\05\00\00_\05\00\00&amp;\05\00\00,\05\00\00\13\05\00\00\19\05\00\00\0d\05\00\00\0e\04\00\00\07\05\00\00\0e\04\00\00\01\05\00\00\0e\04\00\00\fb\04\00\00\0e\04\00\00")
+  (data $custom_section (i32.const 1632) "\aa\aa\aa\aa\cc\cc\cc\cc\bb\bb\bb\bb\dd\dd\dd\dd"))
+</pre>
+
+<script>
+"use strict";
+const logElement = document.getElementById("log");
+let wasmMemory = null;
+let wasmExports = null;
+// Always build views on demand: wasmMemory.grow() detaches the old ArrayBuffer.
+const u8 = () => new Uint8Array(wasmMemory.buffer);
+const utf8 = new TextDecoder("utf-8");
+const hex = (n, w = 8) => "0x" + (n >>> 0).toString(16).padStart(w, "0");
+
+function log(message, divClass)
+{
+	const lineDiv = document.createElement("div");
+	if (divClass) { lineDiv.className = divClass; }
+	else { lineDiv.className = "defaultLog"; }
+	lineDiv.textContent = message;
+	logElement.appendChild(lineDiv);
+	console.log(lineDiv.className + ": " + message);
+}
+function logDebug(message)
+{
+	log(message, "debugLog");
+}
+function logSuccess(message)
+{
+	log(message, "successLog");
+}
+function logError(message)
+{
+	log(message, "errorLog");
+}
+
+function readStr(pntr, length)
+{
+	pntr >>>= 0; length >>>= 0;
+	return utf8.decode(u8().subarray(pntr, pntr + length));
+}
+function readCStr(nullTermPntr)
+{
+	nullTermPntr >>>= 0;
+	const memView = u8();
+	let endPntr = nullTermPntr;
+	while (endPntr < memView.length && memView[endPntr] !== 0) { endPntr++; }
+	return utf8.decode(memView.subarray(nullTermPntr, endPntr));
+}
+
+function readHexLines(basePntr, numBytes)
+{
+	basePntr >>>= 0; numBytes >>>= 0;
+	const memView = u8(), outputLines = [];
+	for (let offset = 0; offset < numBytes; offset += 16)
+	{
+		const row = memView.subarray(basePntr + offset, basePntr + Math.min(offset + 16, numBytes));
+		const hexPart = Array.from(row, b => b.toString(16).padStart(2, "0")).join(" ");
+		const asciiPart = Array.from(row, b => (b >= 32 && b < 127) ? String.fromCharCode(b) : ".").join("");
+		outputLines.push(hex(basePntr + offset) + "  " + hexPart.padEnd(48) + " " + asciiPart);
+	}
+	return outputLines.join("\n");
+}
+
+// Import object. Names must match import_name(...) in wasm_debug.h.
+// Wasm i32 arrives as a signed JS number; i64 arrives as BigInt.
+const jsFunctionsForWasmImport =
+{
+	jsPrintI32: v => log(String(v | 0)),
+	jsPrintU32: v => log(String(v >>> 0)),
+	jsPrintF32: v => log(String(v)),
+	jsPrintF64: v => log(String(v)),
+	jsPrintPtr: p => log(hex(p) + " (" + p + ")"),
+	jsPrintStr: (p, n) => log(readStr(p, n)),
+	jsPrintMem: (p, n) => log(readHexLines(p, n)),
+	jsPrintNamedI32: (l, v) => log(readCStr(l) + ": " + (v | 0)),
+	jsPrintNamedPtr: (l, p) => log(readCStr(l) + ": " + hex(p) + " (" + p + ")"),
+	jsPrintNamedStr: (l, s, n) => log(readCStr(l) + ": \"" + readStr(s, n) + "\" @" + hex(s)),
+};
+
+// Any import the module needs that isn't defined above gets a logging stub,
+// so a missing import shows up in the log instead of failing instantiation.
+function buildImports(wasmModule)
+{
+	const imports = {};
+	for (const wasmImport of WebAssembly.Module.imports(wasmModule))
+	{
+		const moduleRow = (imports[wasmImport.module] ??= {});
+		if (wasmImport.module === "env" && wasmImport.name in jsFunctionsForWasmImport)
+		{
+			moduleRow[wasmImport.name] = jsFunctionsForWasmImport[wasmImport.name]; continue;
+		}
+		if (wasmImport.kind === "function")
+		{
+			moduleRow[wasmImport.name] = (...a) => logError(`unhandled import ${wasmImport.module}.${wasmImport.name}(${a.join(", ")})`);
+		}
+		else { logError(`unhandled ${wasmImport.kind} import ${wasmImport.module}.${wasmImport.name}`); }
+	}
+	return imports;
+}
+
+function decodeBase64(base64EncodedStr)
+{
+	base64EncodedStr = base64EncodedStr.replace(/\s+/g, "");
+	if (Uint8Array.fromBase64) { return Uint8Array.fromBase64(base64EncodedStr); }
+	const binary = atob(base64EncodedStr), binaryArray = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) { binaryArray[i] = binary.charCodeAt(i); }
+	return binaryArray;
+}
+
+async function main()
+{
+	const src = document.getElementById("wasmBase64");
+	const wasmBytes = decodeBase64(src.textContent);
+	if (src.dataset.title)
+	{
+		document.title = src.dataset.title;
+		document.getElementById("title").textContent = "Wasm Binary: " + src.dataset.title + " (" + String(wasmBytes.length) + " bytes)";
+	}
+	const wasmModule = await WebAssembly.compile(wasmBytes);
+	const wasmInstance = await WebAssembly.instantiate(wasmModule, buildImports(wasmModule));
+	wasmExports = wasmInstance.exports;
+	wasmMemory = wasmExports.memory;
+	if (!wasmMemory) { logError("module does not export 'memory'; pointer/string helpers will fail"); }
+	window.wasm = wasmExports; // poke from devtools: wasm.add(2, 3)
+	
+	const names = WebAssembly.Module.exports(wasmModule).map(e => `${e.name} (${e.kind})`);
+	logSuccess("exports: " + names.join(", "));
+	
+	if (typeof wasmExports._initialize === "function") { wasmExports._initialize(); } // reactor-style ctors
+	if (typeof wasmExports["PrintCommandsInfo"] === "function") { callExport("PrintCommandsInfo", []); }
+}
+
+function callExport(funcName, args)
+{
+	const func = wasmExports && wasmExports[funcName];
+	if (typeof func !== "function") { logError(`no exported function '${funcName}'`); return; }
+	logDebug(`> ${funcName}(${args.join(", ")})`);
+	try
+	{
+		const funcReturn = func(...args);
+		if (funcReturn !== undefined) { logDebug(`< ${typeof funcReturn === "bigint" ? funcReturn + "n" : funcReturn}`); }
+	}
+	catch (err) { logError(`trap: ${err}`); }
+}
+
+// Args: numbers -> Number; trailing 'n' -> BigInt (for i64 params).
+function parseArgsString(argsString)
+{
+	return argsString.split(",").map(argStr => argStr.trim()).filter(Boolean)
+			.map(argStr => /^-?\d+n$/.test(argStr) ? BigInt(argStr.slice(0, -1)) : Number(argStr));
+}
+
+document.getElementById("runBtn").onclick = () =>
+{
+	callExport(document.getElementById("functionNameTextbox").value.trim(), parseArgsString(document.getElementById("argsTextbox").value));
+};
+document.getElementById("clearBtn").onclick = () =>
+{
+	logElement.textContent = "";
+};
+
+main().catch(err => logError("load failed: " + err));
+
+</script>
+
+</body>
+</html>
