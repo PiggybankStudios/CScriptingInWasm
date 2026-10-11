@@ -25,7 +25,9 @@ Description:
 #define C_SCRIPTING_FOLDER   "[ROOT]/c_scripting"
 #define PIG_CORE_FOLDER      "[ROOT]/core"
 
-#define USE_MSVC  0
+#define BUILDING_FOR_WINDOWS 0
+#define BUILDING_FOR_WASM    (!BUILDING_FOR_WINDOWS)
+#define USE_MSVC             BUILDING_FOR_WINDOWS
 
 Str DownloadCScriptingIfNeeded();
 Str DownloadPigCoreIfNeeded();
@@ -39,7 +41,7 @@ int main()
 	Str cScriptingFolder = DownloadCScriptingIfNeeded();
 	Str pigCoreFolder = DownloadPigCoreIfNeeded();
 	
-	PrintLine("Building %s...", USE_MSVC ? EXE_OUTPUT_FILENAME : WASM_OUTPUT_FILENAME);
+	PrintLine("Building %s...", BUILDING_FOR_WINDOWS ? EXE_OUTPUT_FILENAME : WASM_OUTPUT_FILENAME);
 	
 	// +==============================+
 	// |        Compiler Args         |
@@ -72,8 +74,8 @@ int main()
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, MAIN_C_PATH);
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, "[ROOT]/src/commands1.c");
 	AddArgNt(&compileArgs, CLI_QUOTED_ARG, "[ROOT]/src/commands2.c");
-	if (USE_MSVC) { AddTaggedArgNt(&compileArgs, T_MSVC_CL, CL_BINARY_FILE, EXE_OUTPUT_FILENAME); }
-	else { AddTaggedArgNt(&compileArgs, T_CLANG, CLANG_OUTPUT_FILE, WASM_OUTPUT_FILENAME); }
+	AddTaggedArgNt(&compileArgs, T_MSVC_CL, CL_BINARY_FILE,    EXE_OUTPUT_FILENAME);
+	AddTaggedArgNt(&compileArgs, T_CLANG,   CLANG_OUTPUT_FILE, WASM_OUTPUT_FILENAME);
 	
 	// AddTaggedArg(&compileArgs,   T_CLANG, CLANG_PRECOMPILE_ONLY);
 	// AddTaggedArg(&compileArgs,   T_CLANG, CLANG_PRECOMPILE_EMIT_DEFINES);
@@ -114,10 +116,15 @@ int main()
 	);
 	AssertFileExist(USE_MSVC ? StrLit(EXE_OUTPUT_FILENAME) : StrLit(WASM_OUTPUT_FILENAME), true);
 	
-	Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
-	#if 1
-	if (!USE_MSVC)
+	
+	
+	// +==============================+
+	// |     Generate index.html      |
+	// +==============================+
+	if (BUILDING_FOR_WASM)
 	{
+		Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
+		#if 1
 		PrintLine("Converting " WASM_OUTPUT_FILENAME " to %.*s...", StrPrint(watFilename));
 		CliArgs wasm2WatFlags = EMPTY;
 		AddArgNt(&wasm2WatFlags, CLI_QUOTED_ARG, WASM_OUTPUT_FILENAME);
@@ -127,16 +134,10 @@ int main()
 			&wasm2WatFlags,
 			FormatStr("Failed to convert " WASM_OUTPUT_FILENAME " to %.*s", StrPrint(watFilename))
 		);
-	}
-	#else
-	TryRemoveFile(watFilename);
-	#endif
-	
-	// +==============================+
-	// |     Generate index.html      |
-	// +==============================+
-	if (!USE_MSVC)
-	{
+		#else
+		TryRemoveFile(watFilename);
+		#endif
+		
 		Str wasmContents = ReadEntireFile(StrLit(WASM_OUTPUT_FILENAME));
 		Str wasmContentsBase64 = Base64Encode(wasmContents);
 		Str watContents = DoesFileExist(watFilename) ? ReadEntireFile(watFilename) : Str_Empty;
@@ -145,11 +146,21 @@ int main()
 		watContents = StrReplace(watContents, StrLit(">"), StrLit("&gt;"));
 		Str templateContents = ReadEntireFile(StrLit("../src/template.html"));
 		IF_WINDOWS(templateContents = StrReplace(templateContents, StrLit("\r\n"), StrLit("\n"));)
-		Str finalHtml = StrReplace(templateContents, StrLit("__WASM_BASE64__"), wasmContentsBase64);
+		Str finalHtml = StrReplace(templateContents, StrLit("__WASM_NAME__"), StrLit(WASM_OUTPUT_FILENAME));
+		finalHtml = StrReplace(templateContents, StrLit("__WASM_BASE64__"), wasmContentsBase64);
 		finalHtml = StrReplace(finalHtml, StrLit("__WAT_TEXT__"), watContents);
 		CreateAndWriteFile(StrLit("index.html"), finalHtml, true);
 	}
 	
+	// +==============================+
+	// |           Run .exe           |
+	// +==============================+
+	#if BUILDING_FOR_WINDOWS
+	int exitCode = RunCliProgram(StrLit(EXE_OUTPUT_FILENAME), nullptr);
+	if (exitCode != 0) { PrintLine_E("Exited: %d", exitCode); } else { WriteLine("Exited Successfully"); }
+	#endif
+	
+	WriteLine("Build script finished!");
 	return 0;
 }
 

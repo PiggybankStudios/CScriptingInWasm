@@ -5,8 +5,9 @@ Date:   10\04\2026
 */
 
 #include "common.h"
+#include "commands.h"
 
-COMMAND(test6, "description6");
-COMMAND(test7, "description7");
-COMMAND(test8, "description8");
-COMMAND(test9, "description9");
+COMMAND(test6, "Generic Description");
+COMMAND(test7, "Generic Description");
+COMMAND(test8, "Generic Description");
+COMMAND(test9, "Generic Description");

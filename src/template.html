@@ -20,8 +20,8 @@
 <body>
 	<h1 id="title" style="font-size:1rem">Loading...</h1>
 	<p>
-		<input id="functionNameTextbox" value="MainFunc" size="12" aria-label="Export name">
-		<input id="argsTextbox" placeholder="args, e.g. 2, 3" size="16" aria-label="Arguments">
+		<input id="functionNameTextbox" value="MainFunc" size="24" aria-label="Export name">
+		<input id="argsTextbox" placeholder="args, e.g. 2, 3" size="32" aria-label="Arguments">
 		<button id="runBtn">Run</button>
 		<button id="clearBtn">Clear log</button>
 	</p>
@@ -159,7 +159,7 @@ async function main()
 	logSuccess("exports: " + names.join(", "));
 	
 	if (typeof wasmExports._initialize === "function") { wasmExports._initialize(); } // reactor-style ctors
-	if (typeof wasmExports["MainFunc"] === "function") { callExport("MainFunc", []); }
+	if (typeof wasmExports["PrintCommandsInfo"] === "function") { callExport("PrintCommandsInfo", []); }
 }
 
 function callExport(funcName, args)

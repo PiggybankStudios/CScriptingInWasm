@@ -7,6 +7,7 @@ Description:
 */
 
 #include "common.h"
+#include "commands.h"
 
 COMMAND(test1, "description1");
 COMMAND(test2, "description2");
@@ -14,4 +15,6 @@ COMMAND(test3, "description3");
 COMMAND(test4, "description4");
 COMMAND(test5, "description5");
 
+#if SY__OS_WASM
 __attribute__((__section__("custom_section"))) __attribute__((used)) int thingInCustomSectionD = 0xDDDDDDDD;
+#endif //SY__OS_WASM

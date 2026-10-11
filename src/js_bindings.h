@@ -9,9 +9,9 @@ Description:
 #ifndef _JS_BINDINGS_H
 #define _JS_BINDINGS_H
 
-#include <stddef.h>
-#include <stdint.h>
-#include <string.h>
+#include "symbol_set.h"
+
+#if SY__OS_WASM
 
 IMPORT_FUNC("jsPrintI32") void jsPrintI32(int32_t v);
 IMPORT_FUNC("jsPrintU32") void jsPrintU32(uint32_t v);
@@ -38,5 +38,7 @@ void jsPrintNamedStrNt(const char* nameNt, const char* nullTermStr)
 	jsPrintNamedStr(nameNt, nullTermStr, length);
 }
 #define jsPrintNamedStrLit(nameNt, strLit) jsPrintNamedStr((nameNt), strLit, sizeof(strLit)-1)
+
+#endif //SY__OS_WASM
 
 #endif //  _JS_BINDINGS_H
