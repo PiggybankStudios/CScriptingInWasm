@@ -147,7 +147,7 @@ int main()
 		Str templateContents = ReadEntireFile(StrLit("../src/template.html"));
 		IF_WINDOWS(templateContents = StrReplace(templateContents, StrLit("\r\n"), StrLit("\n"));)
 		Str finalHtml = StrReplace(templateContents, StrLit("__WASM_NAME__"), StrLit(WASM_OUTPUT_FILENAME));
-		finalHtml = StrReplace(templateContents, StrLit("__WASM_BASE64__"), wasmContentsBase64);
+		finalHtml = StrReplace(finalHtml, StrLit("__WASM_BASE64__"), wasmContentsBase64);
 		finalHtml = StrReplace(finalHtml, StrLit("__WAT_TEXT__"), watContents);
 		CreateAndWriteFile(StrLit("index.html"), finalHtml, true);
 	}
