@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+	<title>Wasm Debugger</title>
+	<style>
+		:root { color-scheme: light dark; }
+		body { font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 1rem; }
+		#log { white-space: pre-wrap; border: 1px solid #BBBBBB; padding: .5rem; min-height: 10rem; }
+		#watText { color: #F8F8F2; opacity: 0.6; white-space: pre-wrap; border: 1px solid #BBBBBB; padding: .5rem; min-height: 10rem; }
+		.debugLog { color: #F8F8F2; opacity: 0.6; }
+		.defaultLog { color: #F8F8F2; }
+		.successLog { color: #A6E22E; }
+		.errorLog { color: #F83333; }
+		button, input { font: inherit; }
+		#clearBtn { float: right; }
+	</style>
+</head>
+<body>
+	<h1 id="title" style="font-size:1rem">Loading...</h1>
+	<p>
+		<input id="functionNameTextbox" value="MainFunc" size="12" aria-label="Export name">
+		<input id="argsTextbox" placeholder="args, e.g. 2, 3" size="16" aria-label="Arguments">
+		<button id="runBtn">Run</button>
+		<button id="clearBtn">Clear log</button>
+	</p>
+	<div id="log"></div>
+	
+	<script type="application/octet-stream" id="wasmBase64" data-title="__WASM_NAME__">
+		__WASM_BASE64__
+	</script>
+	
+	<pre id="watText">__WAT_TEXT__</pre>
+
+<script>
+"use strict";
+const logElement = document.getElementById("log");
+let wasmMemory = null;
+let wasmExports = null;
+// Always build views on demand: wasmMemory.grow() detaches the old ArrayBuffer.
+const u8 = () => new Uint8Array(wasmMemory.buffer);
+const utf8 = new TextDecoder("utf-8");
+const hex = (n, w = 8) => "0x" + (n >>> 0).toString(16).padStart(w, "0");
+
+function log(message, divClass)
+{
+	const lineDiv = document.createElement("div");
+	if (divClass) { lineDiv.className = divClass; }
+	else { lineDiv.className = "defaultLog"; }
+	lineDiv.textContent = message;
+	logElement.appendChild(lineDiv);
+	console.log(lineDiv.className + ": " + message);
+}
+function logDebug(message)
+{
+	log(message, "debugLog");
+}
+function logSuccess(message)
+{
+	log(message, "successLog");
+}
+function logError(message)
+{
+	log(message, "errorLog");
+}
+
+function readStr(pntr, length)
+{
+	pntr >>>= 0; length >>>= 0;
+	return utf8.decode(u8().subarray(pntr, pntr + length));
+}
+function readCStr(nullTermPntr)
+{
+	nullTermPntr >>>= 0;
+	const memView = u8();
+	let endPntr = nullTermPntr;
+	while (endPntr < memView.length && memView[endPntr] !== 0) { endPntr++; }
+	return utf8.decode(memView.subarray(nullTermPntr, endPntr));
+}
+
+function readHexLines(basePntr, numBytes)
+{
+	basePntr >>>= 0; numBytes >>>= 0;
+	const memView = u8(), outputLines = [];
+	for (let offset = 0; offset < numBytes; offset += 16)
+	{
+		const row = memView.subarray(basePntr + offset, basePntr + Math.min(offset + 16, numBytes));
+		const hexPart = Array.from(row, b => b.toString(16).padStart(2, "0")).join(" ");
+		const asciiPart = Array.from(row, b => (b >= 32 && b < 127) ? String.fromCharCode(b) : ".").join("");
+		outputLines.push(hex(basePntr + offset) + "  " + hexPart.padEnd(48) + " " + asciiPart);
+	}
+	return outputLines.join("\n");
+}
+
+// Import object. Names must match import_name(...) in wasm_debug.h.
+// Wasm i32 arrives as a signed JS number; i64 arrives as BigInt.
+const jsFunctionsForWasmImport =
+{
+	jsPrintI32: v => log(String(v | 0)),
+	jsPrintU32: v => log(String(v >>> 0)),
+	jsPrintF32: v => log(String(v)),
+	jsPrintF64: v => log(String(v)),
+	jsPrintPtr: p => log(hex(p) + " (" + p + ")"),
+	jsPrintStr: (p, n) => log(readStr(p, n)),
+	jsPrintMem: (p, n) => log(readHexLines(p, n)),
+	jsPrintNamedI32: (l, v) => log(readCStr(l) + ": " + (v | 0)),
+	jsPrintNamedPtr: (l, p) => log(readCStr(l) + ": " + hex(p) + " (" + p + ")"),
+	jsPrintNamedStr: (l, s, n) => log(readCStr(l) + ": \"" + readStr(s, n) + "\" @" + hex(s)),
+};
+
+// Any import the module needs that isn't defined above gets a logging stub,
+// so a missing import shows up in the log instead of failing instantiation.
+function buildImports(wasmModule)
+{
+	const imports = {};
+	for (const wasmImport of WebAssembly.Module.imports(wasmModule))
+	{
+		const moduleRow = (imports[wasmImport.module] ??= {});
+		if (wasmImport.module === "env" && wasmImport.name in jsFunctionsForWasmImport)
+		{
+			moduleRow[wasmImport.name] = jsFunctionsForWasmImport[wasmImport.name]; continue;
+		}
+		if (wasmImport.kind === "function")
+		{
+			moduleRow[wasmImport.name] = (...a) => logError(`unhandled import ${wasmImport.module}.${wasmImport.name}(${a.join(", ")})`);
+		}
+		else { logError(`unhandled ${wasmImport.kind} import ${wasmImport.module}.${wasmImport.name}`); }
+	}
+	return imports;
+}
+
+function decodeBase64(base64EncodedStr)
+{
+	base64EncodedStr = base64EncodedStr.replace(/\s+/g, "");
+	if (Uint8Array.fromBase64) { return Uint8Array.fromBase64(base64EncodedStr); }
+	const binary = atob(base64EncodedStr), binaryArray = new Uint8Array(binary.length);
+	for (let i = 0; i < binary.length; i++) { binaryArray[i] = binary.charCodeAt(i); }
+	return binaryArray;
+}
+
+async function main()
+{
+	const src = document.getElementById("wasmBase64");
+	const wasmBytes = decodeBase64(src.textContent);
+	if (src.dataset.title)
+	{
+		document.title = src.dataset.title;
+		document.getElementById("title").textContent = "Wasm Binary: " + src.dataset.title + " (" + String(wasmBytes.length) + " bytes)";
+	}
+	const wasmModule = await WebAssembly.compile(wasmBytes);
+	const wasmInstance = await WebAssembly.instantiate(wasmModule, buildImports(wasmModule));
+	wasmExports = wasmInstance.exports;
+	wasmMemory = wasmExports.memory;
+	if (!wasmMemory) { logError("module does not export 'memory'; pointer/string helpers will fail"); }
+	window.wasm = wasmExports; // poke from devtools: wasm.add(2, 3)
+	
+	const names = WebAssembly.Module.exports(wasmModule).map(e => `${e.name} (${e.kind})`);
+	logSuccess("exports: " + names.join(", "));
+	
+	if (typeof wasmExports._initialize === "function") { wasmExports._initialize(); } // reactor-style ctors
+	if (typeof wasmExports["MainFunc"] === "function") { callExport("MainFunc", []); }
+}
+
+function callExport(funcName, args)
+{
+	const func = wasmExports && wasmExports[funcName];
+	if (typeof func !== "function") { logError(`no exported function '${funcName}'`); return; }
+	logDebug(`> ${funcName}(${args.join(", ")})`);
+	try
+	{
+		const funcReturn = func(...args);
+		if (funcReturn !== undefined) { logDebug(`< ${typeof funcReturn === "bigint" ? funcReturn + "n" : funcReturn}`); }
+	}
+	catch (err) { logError(`trap: ${err}`); }
+}
+
+// Args: numbers -> Number; trailing 'n' -> BigInt (for i64 params).
+function parseArgsString(argsString)
+{
+	return argsString.split(",").map(argStr => argStr.trim()).filter(Boolean)
+			.map(argStr => /^-?\d+n$/.test(argStr) ? BigInt(argStr.slice(0, -1)) : Number(argStr));
+}
+
+document.getElementById("runBtn").onclick = () =>
+{
+	callExport(document.getElementById("functionNameTextbox").value.trim(), parseArgsString(document.getElementById("argsTextbox").value));
+};
+document.getElementById("clearBtn").onclick = () =>
+{
+	logElement.textContent = "";
+};
+
+main().catch(err => logError("load failed: " + err));
+
+</script>
+
+</body>
+</html>

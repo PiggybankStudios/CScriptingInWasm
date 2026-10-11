@@ -15,6 +15,8 @@ Date:   10\04\2026
 #define EXPORT_FUNC(nameStrLit) //nothing
 #endif
 
+#define IMPORT_FUNC(nameStrLit) __attribute__((import_module("env"), import_name(nameStrLit)))
+
 typedef struct RegisteredCommand RegisteredCommand;
 struct RegisteredCommand
 {

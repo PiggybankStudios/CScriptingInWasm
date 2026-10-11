@@ -114,10 +114,10 @@ int main()
 	);
 	AssertFileExist(USE_MSVC ? StrLit(EXE_OUTPUT_FILENAME) : StrLit(WASM_OUTPUT_FILENAME), true);
 	
+	Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
 	#if 1
 	if (!USE_MSVC)
 	{
-		Str watFilename = ChangePathExtension(StrLit(WASM_OUTPUT_FILENAME), StrLit(".wat"), false);
 		PrintLine("Converting " WASM_OUTPUT_FILENAME " to %.*s...", StrPrint(watFilename));
 		CliArgs wasm2WatFlags = EMPTY;
 		AddArgNt(&wasm2WatFlags, CLI_QUOTED_ARG, WASM_OUTPUT_FILENAME);
@@ -128,7 +128,27 @@ int main()
 			FormatStr("Failed to convert " WASM_OUTPUT_FILENAME " to %.*s", StrPrint(watFilename))
 		);
 	}
+	#else
+	TryRemoveFile(watFilename);
 	#endif
+	
+	// +==============================+
+	// |     Generate index.html      |
+	// +==============================+
+	if (!USE_MSVC)
+	{
+		Str wasmContents = ReadEntireFile(StrLit(WASM_OUTPUT_FILENAME));
+		Str wasmContentsBase64 = Base64Encode(wasmContents);
+		Str watContents = DoesFileExist(watFilename) ? ReadEntireFile(watFilename) : Str_Empty;
+		watContents = StrReplace(watContents, StrLit("&"), StrLit("&amp;"));
+		watContents = StrReplace(watContents, StrLit("<"), StrLit("&lt;"));
+		watContents = StrReplace(watContents, StrLit(">"), StrLit("&gt;"));
+		Str templateContents = ReadEntireFile(StrLit("../src/template.html"));
+		IF_WINDOWS(templateContents = StrReplace(templateContents, StrLit("\r\n"), StrLit("\n"));)
+		Str finalHtml = StrReplace(templateContents, StrLit("__WASM_BASE64__"), wasmContentsBase64);
+		finalHtml = StrReplace(finalHtml, StrLit("__WAT_TEXT__"), watContents);
+		CreateAndWriteFile(StrLit("index.html"), finalHtml, true);
+	}
 	
 	return 0;
 }

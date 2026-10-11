@@ -9,6 +9,7 @@ Description:
 #define SY__MAIN 1
 
 #include "common.h"
+#include "js_bindings.h"
 
 #include "symbol_set.h"
 
@@ -24,9 +25,11 @@ __attribute__((__section__("custom_section"))) int thingInCustomSectionC = 0xCCC
 __attribute__((__section__("custom_section"))) int thingInCustomSectionB = 0xBBBBBBBB;
 extern int thingInCustomSectionD;
 extern const char __start_custom_section;
-extern const char __end_custom_section;
+extern const char __stop_custom_section;
 
-EXPORT_FUNC("MyFunction") int MyFunction()
+EXPORT_FUNC("Add") int Add(int left, int right) { return left + right; }
+
+EXPORT_FUNC("MainFunc") int MainFunc()
 {
 	// SY__U32 local1Id = SyID(COMMANDS, local1);
 	// SY__U32 local2Id = SyID(COMMANDS, local2);
@@ -50,19 +53,26 @@ EXPORT_FUNC("MyFunction") int MyFunction()
 	// printf("test7 has ID %u\n", test7Id);
 	// printf("test8 has ID %u\n", test8Id);
 	// printf("test9 has ID %u\n", test9Id);
-	// int result = 0;
-	// for (SyEachID(COMMANDS, cmdId))
-	// {
-	// 	RegisteredCommand* cmd = SyAddressFromID(COMMANDS, cmdId);
-	// 	printf("Command %u: \"%s\"\n", cmdId, cmd->name);
-	// 	result += cmdId;
-	// }
+	int result = 0;
+	for (SyEachID(COMMANDS, cmdId))
+	{
+		RegisteredCommand* cmd = SyAddressFromID(COMMANDS, cmdId);
+		jsPrintNamedI32("Command", cmdId);
+		jsPrintStrNt(cmd->name);
+		result += cmdId;
+	}
 	// return (int)(test1Id + test2Id + test3Id + test4Id + test5Id + test6Id + test7Id + test8Id + test9Id);
 	// return (int)(local1Id + local2Id + local3Id + local4Id);
 	// return result;
-	int result = thingInCustomSectionA + thingInCustomSectionB + thingInCustomSectionC + thingInCustomSectionD;
-	return ((int)&__end_custom_section) - ((int)&__start_custom_section) + result;
-	// return 0;
+	
+	jsPrintNamedPtr("__start_custom_section", &__start_custom_section);
+	jsPrintNamedPtr("__stop_custom_section", &__stop_custom_section);
+	jsPrintNamedI32("sectionSize", (int32_t)((int)&__stop_custom_section) - ((int)&__start_custom_section));
+	jsPrintNamedPtr("thingInCustomSectionA", &thingInCustomSectionA);
+	jsPrintNamedPtr("thingInCustomSectionB", &thingInCustomSectionB);
+	jsPrintNamedPtr("thingInCustomSectionC", &thingInCustomSectionC);
+	jsPrintNamedPtr("thingInCustomSectionD", &thingInCustomSectionD);
+	return 0;
 }
 
 #if SY__OS_WINDOWS
